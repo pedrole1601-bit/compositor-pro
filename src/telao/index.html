@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compositor Pro v2 - Telão</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        #compositor-root {
+            position: absolute;
+            width: 1920px;
+            height: 1080px;
+            transform-origin: top left;
+            overflow: hidden;
+        }
+
+        .frame {
+            position: absolute;
+            overflow: hidden;
+        }
+
+        .frame img,
+        .frame video {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .frame iframe {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .frame-clock,
+        .frame-counter,
+        .frame-text {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-variant-numeric: tabular-nums;
+            overflow: hidden;
+            word-break: break-word;
+        }
+
+        /* ===== TRANSITION CONTAINERS ===== */
+        .telao-transition-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            /* Garante que o container herda o tamanho do root */
+            pointer-events: none;
+        }
+
+        /* Frames dentro do container de transição mantêm posição absoluta */
+        .telao-transition-container .frame {
+            position: absolute;
+        }
+
+        /* ===== TRANSITION KEYFRAMES ===== */
+
+        /* Fade */
+        @keyframes trans-fade-in {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes trans-fade-out {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
+        }
+
+        /* Slide Left */
+        @keyframes trans-slide-left-in {
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes trans-slide-left-out {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(-100%);
+            }
+        }
+
+        /* Slide Right */
+        @keyframes trans-slide-right-in {
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes trans-slide-right-out {
+            from {
+                transform: translateX(0);
+            }
+
+            to {
+                transform: translateX(100%);
+            }
+        }
+
+        /* Slide Up */
+        @keyframes trans-slide-up-in {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes trans-slide-up-out {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-100%);
+            }
+        }
+
+        /* Slide Down */
+        @keyframes trans-slide-down-in {
+            from {
+                transform: translateY(-100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes trans-slide-down-out {
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(100%);
+            }
+        }
+
+        /* Zoom */
+        @keyframes trans-zoom-in {
+            from {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes trans-zoom-out {
+            from {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            to {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        /* Blur */
+        @keyframes trans-blur-in {
+            from {
+                filter: blur(30px);
+                opacity: 0;
+            }
+
+            to {
+                filter: blur(0px);
+                opacity: 1;
+            }
+        }
+
+        @keyframes trans-blur-out {
+            from {
+                filter: blur(0px);
+                opacity: 1;
+            }
+
+            to {
+                filter: blur(30px);
+                opacity: 0;
+            }
+        }
+
+        /* Wipe (left to right) */
+        @keyframes trans-wipe-in {
+            from {
+                clip-path: inset(0 100% 0 0);
+            }
+
+            to {
+                clip-path: inset(0 0 0 0);
+            }
+        }
+
+        @keyframes trans-wipe-out {
+            from {
+                clip-path: inset(0 0 0 0);
+            }
+
+            to {
+                clip-path: inset(0 0 0 100%);
+            }
+        }
+
+        /* Debug overlay */
+        .debug-overlay {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 99999;
+            display: none;
+            color: #0f0;
+            line-height: 1.6;
+        }
+
+        .debug-overlay.visible {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="compositor-root"></div>
+    <div id="debug-overlay" class="debug-overlay">
+        <div>WS: <span id="dbg-status">—</span></div>
+        <div>Cena: <span id="dbg-scene">—</span></div>
+        <div>Frames: <span id="dbg-frames">0</span></div>
+        <div>Scale: <span id="dbg-scale">1</span></div>
+        <div>Transição: <span id="dbg-transition">—</span></div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

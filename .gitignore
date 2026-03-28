@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.vbs
+.env
+.DS_Store
+thumbs.db
+uploads/
